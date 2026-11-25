@@ -217,7 +217,7 @@ struct ToolPropertyBarView: View {
         case .mosaic, .blur:
             controls = [.effectMode]
             if model.effectDrawingMode(for: tool) == .brush { controls.append(.brush) }
-            controls.append(tool == .mosaic ? .block : .blur)
+            controls.append((tool == .mosaic && !model.isMosaicUsingBlur) ? .block : .blur)
         }
         controls.append(.actions)
         let usable = max(0, availableWidth - inset * 2)
