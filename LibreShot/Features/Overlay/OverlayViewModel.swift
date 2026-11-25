@@ -568,31 +568,41 @@ class OverlayViewModel: ObservableObject {
     private var effectSelection: CGRect = .zero
     private var effectScale: CGFloat = 1
 
+    private func resolvedToolType(_ tool: AnnotationType) -> AnnotationType {
+        (tool == .mosaic && settings.mosaicEffectStyle == .blur) ? .blur : tool
+    }
+
     var activeEffectTool: AnnotationType? {
         if let a = annotations.first(where: { $0.id == selectedAnnotationID }), a.type == .mosaic || a.type == .blur { return a.type }
-        return selectedTool == .mosaic || selectedTool == .blur ? selectedTool : nil
+        return selectedTool.map(resolvedToolType).flatMap { $0 == .mosaic || $0 == .blur ? $0 : nil }
     }
 
     var isDrawingEffectBrush: Bool {
-        guard let tool = selectedTool, tool == .mosaic || tool == .blur else { return false }
+        guard let selected = selectedTool else { return false }
+        let tool = resolvedToolType(selected)
+        guard tool == .mosaic || tool == .blur else { return false }
         return effectDrawingMode(for: tool) == .brush
     }
 
     func effectDrawingMode(for tool: AnnotationType) -> EffectDrawingMode {
-        if let annotation = annotations.first(where: { $0.id == selectedAnnotationID }), annotation.type == tool {
+        let effective = resolvedToolType(tool)
+        if let annotation = annotations.first(where: { $0.id == selectedAnnotationID }), annotation.type == effective {
             return annotation.isEffectBrush ? .brush : .rectangle
         }
-        return tool == .mosaic ? selectedMosaicMode : selectedBlurMode
+        return effective == .mosaic ? selectedMosaicMode : selectedBlurMode
     }
 
     func setEffectDrawingMode(_ mode: EffectDrawingMode, for tool: AnnotationType) {
-        guard tool == .mosaic || tool == .blur else { return }
+        let effective = resolvedToolType(tool)
+        guard effective == .mosaic || effective == .blur else { return }
         selectedAnnotationID = nil
-        selectedTool = tool
-        var style = settings.annotationStyle(for: tool)
+        if selectedTool != .mosaic || effective != .blur {
+            selectedTool = effective
+        }
+        var style = settings.annotationStyle(for: effective)
         style.effectMode = mode
-        settings.setAnnotationStyle(style, for: tool)
-        loadToolDefaults(for: tool)
+        settings.setAnnotationStyle(style, for: effective)
+        loadToolDefaults(for: effective)
     }
 
     func setEffectValue(_ value: CGFloat, parameter: String) {
@@ -968,7 +978,8 @@ class OverlayViewModel: ObservableObject {
             return
         }
         
-        guard state == .editing, let tool = selectedTool else { return }
+        guard state == .editing, let selected = selectedTool else { return }
+        let tool = resolvedToolType(selected)
         if (tool == .mosaic || tool == .blur), !selectionRect.contains(point) {
             return
         }
@@ -1329,7 +1340,7 @@ class OverlayViewModel: ObservableObject {
         selectedAnnotationID = nil
         currentAnnotation = nil
         pendingDrawing = nil
-        if let tool { loadToolDefaults(for: tool) }
+        if let tool { loadToolDefaults(for: resolvedToolType(tool)) }
         if tool != .text {
             cancelTextInput()
         }
@@ -1494,7 +1505,10 @@ class OverlayViewModel: ObservableObject {
 
     // MARK: - Tool Properties
     var propertyTool: AnnotationType? {
-        annotations.first(where: { $0.id == selectedAnnotationID })?.type ?? selectedTool
+        if let selected = annotations.first(where: { $0.id == selectedAnnotationID }) {
+            return selected.type
+        }
+        return selectedTool.map(resolvedToolType)
     }
 
     var propertyTitle: String {

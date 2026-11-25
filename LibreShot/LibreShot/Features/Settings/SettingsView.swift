@@ -111,6 +111,16 @@ struct ToolbarSettingsView: View {
                 }
                 .help("隐藏默认工具时回到选择／移动")
             }
+            Divider()
+            optionRow("马赛克效果") {
+                Picker("马赛克效果", selection: $settings.mosaicEffectStyle) {
+                    ForEach(MosaicEffectStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("选择使用马赛克工具时的遮挡方式：方块马赛克或高斯模糊")
+            }
         }
         .padding(.horizontal, 12)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))

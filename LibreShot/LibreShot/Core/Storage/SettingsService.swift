@@ -21,6 +21,20 @@ enum MenuBarLeftClickAction: String, CaseIterable, Identifiable {
     }
 }
 
+enum MosaicEffectStyle: String, CaseIterable, Identifiable {
+    case mosaic
+    case blur
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .mosaic: return "马赛克"
+        case .blur: return "模糊"
+        }
+    }
+}
+
 enum PinDoubleClickAction: String, CaseIterable, Identifiable {
     case close
     case copyAndClose = "copy"
@@ -144,6 +158,10 @@ class SettingsService: ObservableObject {
         didSet { defaults.set(numberAnnotationStyle.rawValue, forKey: "numberAnnotationStyle") }
     }
 
+    @Published var mosaicEffectStyle: MosaicEffectStyle {
+        didSet { defaults.set(mosaicEffectStyle.rawValue, forKey: "mosaicEffectStyle") }
+    }
+
     @Published private(set) var annotationToolStyles: [String: AnnotationToolStyle] {
         didSet {
             if let data = try? JSONEncoder().encode(annotationToolStyles) {
@@ -261,6 +279,7 @@ class SettingsService: ObservableObject {
         self.editorSpaceAction = EditorSpaceAction(rawValue: defaults.string(forKey: "editorSpaceAction") ?? "") ?? .disabled
         self.doubleClickCompletesCapture = defaults.object(forKey: "doubleClickCompletesCapture") as? Bool ?? true
         self.pinDoubleClickAction = PinDoubleClickAction(rawValue: defaults.string(forKey: "pinDoubleClickAction") ?? "") ?? .close
+        self.mosaicEffectStyle = MosaicEffectStyle(rawValue: defaults.string(forKey: "mosaicEffectStyle") ?? "") ?? .mosaic
         self.doubleOptionEnabled = defaults.bool(forKey: "doubleOptionEnabled")
         self.toolbarConfiguration = ToolbarConfiguration(
             hiddenItems: Set(defaults.stringArray(forKey: "hiddenToolbarItems") ?? []),
