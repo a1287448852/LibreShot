@@ -65,7 +65,13 @@ class OverlayWindow: NSWindow {
 
 extension OverlayWindow {
     func bindEditingActions(to model: OverlayViewModel) {
-        onEditorShortcut = { [weak model] event, textResponder in
+        if frame.size != .zero {
+            model.overlayBounds = CGRect(origin: .zero, size: frame.size)
+        }
+        onEditorShortcut = { [weak self, weak model] event, textResponder in
+            if let size = self?.frame.size, size != .zero {
+                model?.overlayBounds = CGRect(origin: .zero, size: size)
+            }
             if model?.performSelectionLoupeShortcut(event) == true { return true }
             return model?.performEditorShortcut(event, textResponder: textResponder) ?? false
         }

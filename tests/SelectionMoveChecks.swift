@@ -94,5 +94,37 @@ import SwiftUI
         click.captureMode = .normal; click.state = .longCaptureReady
         precondition(click.canMoveSelection(from: start), "Long capture selection allows blank movement before capture")
         print("PASS: click jitter, blank double-click completion, handle priority and editor boundaries")
+
+        let nudged = model()
+        nudged.overlayBounds = bounds
+        nudged.selectTool(.rectangle)
+        nudged.handleDrawingDrag(from: CGPoint(x: 130, y: 130), to: CGPoint(x: 200, y: 170)); nudged.endDrawing()
+        let nudgeAnnotationStart = nudged.annotations[0].startPoint
+        func arrowEvent(_ keyCode: UInt16, repeat isRepeat: Bool = false, timestamp: TimeInterval = 1.0,
+                        modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+            NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: timestamp,
+                             windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+                             isARepeat: isRepeat, keyCode: keyCode)!
+        }
+        precondition(nudged.performEditorShortcut(arrowEvent(124, timestamp: 1.0))
+                     && nudged.selectionRect.origin == CGPoint(x: 101, y: 100), "Right arrow nudges 1pt")
+        precondition(nudged.annotations[0].startPoint == CGPoint(x: nudgeAnnotationStart.x + 1, y: nudgeAnnotationStart.y),
+                     "Arrow nudge carries annotations")
+        precondition(nudged.performEditorShortcut(arrowEvent(124, repeat: true, timestamp: 1.35))
+                     && nudged.selectionRect.origin == CGPoint(x: 104, y: 100), "Held arrow accelerates to 3pt")
+        precondition(nudged.performEditorShortcut(arrowEvent(124, repeat: true, timestamp: 1.70))
+                     && nudged.selectionRect.origin == CGPoint(x: 112, y: 100), "Long-held arrow accelerates to 8pt")
+        precondition(nudged.performEditorShortcut(arrowEvent(125, timestamp: 2.0, modifiers: .shift))
+                     && nudged.selectionRect.origin == CGPoint(x: 112, y: 110), "Shift+Down nudges 10pt")
+        precondition(nudged.performEditorShortcut(arrowEvent(123, timestamp: 2.1))
+                     && nudged.selectionRect.origin == CGPoint(x: 111, y: 110), "Left arrow nudges -1pt")
+        precondition(nudged.performEditorShortcut(arrowEvent(126, timestamp: 2.2))
+                     && nudged.selectionRect.origin == CGPoint(x: 111, y: 109), "Up arrow nudges -1pt")
+        precondition(!nudged.performEditorShortcut(arrowEvent(124, timestamp: 2.3), textResponder: true)
+                     && nudged.selectionRect.origin == CGPoint(x: 111, y: 109), "Text responder retains arrow keys")
+        nudged.selectionRect = CGRect(x: 0, y: 0, width: 300, height: 200)
+        precondition(nudged.performEditorShortcut(arrowEvent(123, timestamp: 2.4))
+                     && nudged.selectionRect.origin == .zero, "Arrow nudge clamps to bounds")
+        print("PASS: arrow key 1pt nudge, hold acceleration, shift-10pt, annotation carry and bounds clamping")
     }
 }

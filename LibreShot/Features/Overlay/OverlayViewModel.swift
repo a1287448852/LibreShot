@@ -142,6 +142,9 @@ class OverlayViewModel: ObservableObject {
     @Published var isMovingSelection: Bool = false
     @Published var previewImage: CGImage? { didSet { scheduleEffectPreview() } }
     @Published var previewScale: CGFloat = 1.0 { didSet { scheduleEffectPreview() } }
+    var overlayBounds: CGRect?
+    private var arrowNudgeKeyCode: UInt16?
+    private var arrowNudgeStartTime: TimeInterval = 0
     @Published private(set) var selectionLoupe: SelectionLoupeReading?
     @Published private(set) var selectionLoupeShowsRGB = false
     @Published private(set) var selectionLoupeCopied = false
@@ -323,6 +326,10 @@ class OverlayViewModel: ObservableObject {
                 if settings.editorSpaceAction == .complete { confirmCopy() }
                 else { confirmSaveAndCopy() }
             }
+            return true
+        }
+        if !editing, captureMode != .imageEditor, let offset = arrowNudgeOffset(for: event) {
+            nudgeSelection(dx: offset.dx, dy: offset.dy)
             return true
         }
         guard let item = ToolbarItem.allCases.first(where: { settings.editorShortcuts[$0.rawValue]?.matches(event) == true }) else { return false }
@@ -1769,6 +1776,65 @@ class OverlayViewModel: ObservableObject {
     func endMoveSelection() {
         isMovingSelection = false
         selectionMoveHasDragged = false
+    }
+
+    private var resolvedOverlayBounds: CGRect? {
+        if let overlayBounds, !overlayBounds.isEmpty { return overlayBounds }
+        if let previewImage, previewScale > 0 {
+            return CGRect(x: 0, y: 0,
+                          width: CGFloat(previewImage.width) / previewScale,
+                          height: CGFloat(previewImage.height) / previewScale)
+        }
+        return nil
+    }
+
+    private func arrowNudgeOffset(for event: NSEvent) -> CGVector? {
+        let direction: CGVector
+        switch event.keyCode {
+        case 123: direction = CGVector(dx: -1, dy: 0)
+        case 124: direction = CGVector(dx: 1, dy: 0)
+        case 125: direction = CGVector(dx: 0, dy: 1)
+        case 126: direction = CGVector(dx: 0, dy: -1)
+        default: return nil
+        }
+        let relevantModifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        guard relevantModifiers.isEmpty || relevantModifiers == .shift else { return nil }
+        let step: CGFloat
+        if relevantModifiers == .shift {
+            step = 10
+        } else if !event.isARepeat || arrowNudgeKeyCode != event.keyCode {
+            arrowNudgeKeyCode = event.keyCode
+            arrowNudgeStartTime = event.timestamp
+            step = 1
+        } else {
+            let elapsed = max(0, event.timestamp - arrowNudgeStartTime)
+            step = elapsed >= 0.6 ? 8 : (elapsed >= 0.25 ? 3 : 1)
+        }
+        return CGVector(dx: direction.dx * step, dy: direction.dy * step)
+    }
+
+    func nudgeSelection(dx: CGFloat, dy: CGFloat, within bounds: CGRect? = nil) {
+        guard captureMode != .imageEditor,
+              state == .editing || state == .longCaptureReady,
+              !selectionRect.isEmpty else { return }
+        let newX: CGFloat
+        let newY: CGFloat
+        if let effectiveBounds = bounds ?? resolvedOverlayBounds {
+            let maxX = max(effectiveBounds.maxX - selectionRect.width, effectiveBounds.minX)
+            let maxY = max(effectiveBounds.maxY - selectionRect.height, effectiveBounds.minY)
+            newX = min(max(selectionRect.minX + dx, effectiveBounds.minX), maxX)
+            newY = min(max(selectionRect.minY + dy, effectiveBounds.minY), maxY)
+        } else {
+            newX = selectionRect.minX + dx
+            newY = selectionRect.minY + dy
+        }
+        let newRect = CGRect(x: newX, y: newY, width: selectionRect.width, height: selectionRect.height)
+        let offset = CGSize(width: newRect.minX - selectionRect.minX, height: newRect.minY - selectionRect.minY)
+        guard offset != .zero else { return }
+        cancelConfirmationClick()
+        selectionRect = newRect
+        moveAllAnnotations(offset: offset)
+        moveEditingTextPosition(offset: offset)
     }
 
     var canResizeSelection: Bool {
